@@ -1,0 +1,1192 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ShipSwift - Internal Package Tracking</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-sA+9VIvyZtH1/Rz2jB1VXG7wRoFh3f1i9GaQJrKqkMQ=" crossorigin=""/>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: 'Inter', sans-serif;
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+            color: #333;
+            line-height: 1.6;
+        }
+        .navbar {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 70px;
+            background: #ffffff;
+            border-bottom: 1px solid #e1e5e9;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 30px;
+            z-index: 1000;
+        }
+        .logo {
+            font-family: 'Inter', sans-serif;
+            font-size: 28px;
+            font-weight: 700;
+            color: #4a90e2;
+            text-shadow: none;
+        }
+        .avatar {
+            width: 45px;
+            height: 45px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border: 3px solid #ffffff;
+            box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.1), 0 4px 8px rgba(0, 0, 0, 0.15);
+        }
+        .notification {
+            position: relative;
+            color: #666;
+            font-size: 22px;
+            cursor: pointer;
+            padding: 8px;
+            border-radius: 50%;
+            transition: all 0.3s ease;
+        }
+        .notification:hover {
+            background: #f0f2f5;
+            box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+        .notification-badge {
+            position: absolute;
+            top: 5px;
+            right: 5px;
+            background: #ff6b6b;
+            color: #fff;
+            border-radius: 50%;
+            width: 20px;
+            height: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 11px;
+            font-weight: 600;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+        }
+        .sidebar {
+            position: fixed;
+            left: 0;
+            top: 70px;
+            width: 280px;
+            height: calc(100vh - 70px);
+            background: #ffffff;
+            border-right: 1px solid #e1e5e9;
+            box-shadow: 4px 0 20px rgba(0, 0, 0, 0.08);
+            padding: 30px 0;
+            z-index: 999;
+            transform: translateX(0);
+            transition: transform 0.3s ease;
+        }
+        .sidebar.collapsed {
+            transform: translateX(-280px);
+        }
+        .sidebar-toggle {
+            position: absolute;
+            top: 15px;
+            right: -45px;
+            background: #ffffff;
+            border: 2px solid #e1e5e9;
+            color: #4a90e2;
+            width: 45px;
+            height: 45px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            border-radius: 50%;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+            transition: all 0.3s ease;
+        }
+        .sidebar-toggle:hover {
+            box-shadow: 0 6px 16px rgba(0, 0, 0, 0.2);
+            transform: translateY(-2px);
+        }
+        .nav-item {
+            display: flex;
+            align-items: center;
+            padding: 16px 25px;
+            margin: 8px 15px;
+            color: #666;
+            text-decoration: none;
+            transition: all 0.3s ease;
+            cursor: pointer;
+            border-radius: 12px;
+            font-weight: 500;
+        }
+        .nav-item:hover, .nav-item.active {
+            background: #f8f9fa;
+            color: #4a90e2;
+            box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.05), 0 4px 8px rgba(0, 0, 0, 0.1);
+            transform: translateY(-1px);
+        }
+        .nav-icon {
+            margin-right: 15px;
+            font-size: 20px;
+        }
+        .main-content {
+            margin-left: 280px;
+            margin-top: 70px;
+            padding: 30px;
+            min-height: calc(100vh - 70px);
+            transition: margin-left 0.3s ease;
+        }
+        .main-content.expanded {
+            margin-left: 0;
+        }
+        .page {
+            display: none;
+            animation: fadeIn 0.5s ease;
+        }
+        .page.active {
+            display: block;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .card {
+            background: #ffffff;
+            border: none;
+            border-radius: 20px;
+            padding: 25px;
+            margin-bottom: 25px;
+            box-shadow: 8px 8px 16px rgba(163, 177, 198, 0.6), -8px -8px 16px rgba(255, 255, 255, 0.8);
+            transition: all 0.3s ease;
+        }
+        .card:hover {
+            box-shadow: 12px 12px 24px rgba(163, 177, 198, 0.8), -12px -12px 24px rgba(255, 255, 255, 0.9);
+            transform: translateY(-2px);
+        }
+        .btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border: none;
+            color: #fff;
+            padding: 12px 24px;
+            border-radius: 25px;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 14px;
+            transition: all 0.3s ease;
+            text-transform: none;
+            letter-spacing: 0.5px;
+            box-shadow: inset 0 2px 4px rgba(255, 255, 255, 0.2), 0 4px 8px rgba(0, 0, 0, 0.15);
+        }
+        .btn:hover {
+            box-shadow: inset 0 2px 4px rgba(255, 255, 255, 0.3), 0 6px 12px rgba(0, 0, 0, 0.2);
+            transform: translateY(-2px);
+        }
+        .btn-secondary {
+            background: #f8f9fa;
+            border: 2px solid #e1e5e9;
+            color: #666;
+            box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.05), 0 4px 8px rgba(0, 0, 0, 0.1);
+        }
+        .btn-secondary:hover {
+            background: #ffffff;
+            box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.1), 0 6px 12px rgba(0, 0, 0, 0.15);
+            color: #4a90e2;
+            border-color: #4a90e2;
+        }
+        .input {
+            width: 100%;
+            padding: 15px 20px;
+            background: #f8f9fa;
+            border: 2px solid #e1e5e9;
+            border-radius: 15px;
+            color: #333;
+            font-family: 'Inter', sans-serif;
+            font-size: 16px;
+            transition: all 0.3s ease;
+            box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.05);
+        }
+        .input:focus {
+            outline: none;
+            border-color: #4a90e2;
+            box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.1), 0 0 0 3px rgba(74, 144, 226, 0.1);
+            background: #ffffff;
+        }
+        .status-stepper {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin: 90px 0 60px;
+            position: relative;
+            min-height: 160px;
+        }
+        .status-stepper::before {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 0;
+            right: 0;
+            height: 4px;
+            background: #e1e5e9;
+            border-radius: 2px;
+            z-index: 1;
+        }
+        .step {
+            background: #f8f9fa;
+            border: 3px solid #e1e5e9;
+            border-radius: 50%;
+            width: 82px;
+            height: 82px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 2;
+            position: relative;
+            transition: all 0.3s ease;
+            box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.1), 0 4px 8px rgba(0, 0, 0, 0.1);
+        }
+        .step.completed {
+            background: #7ed321;
+            border-color: #7ed321;
+            color: #fff;
+            box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.2), 0 6px 12px rgba(126, 211, 33, 0.3);
+        }
+        .step.active {
+            border-color: #f5a623;
+            box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.1), 0 6px 12px rgba(245, 166, 35, 0.3);
+        }
+        .step.pending {
+            opacity: 0.6;
+        }
+        .step-icon {
+            font-size: 30px;
+            line-height: 1;
+        }
+        .step-info {
+            position: absolute;
+            top: 100%;
+            left: 50%;
+            transform: translate(-50%, 10px);
+            text-align: center;
+            width: 150px;
+            color: #666;
+            font-size: 14px;
+            line-height: 1.4;
+            margin-top: 10px;
+            white-space: normal;
+        }
+        .table {
+            width: 100%;
+            border-collapse: separate;
+            border-spacing: 0;
+            margin-top: 20px;
+            border-radius: 15px;
+            overflow: hidden;
+            box-shadow: 0 8px 16px rgba(0, 0, 0, 0.1);
+        }
+        .table th, .table td {
+            padding: 16px;
+            text-align: left;
+            border-bottom: 1px solid #e1e5e9;
+            vertical-align: middle;
+            background: #ffffff;
+        }
+        .table th {
+            background: #f8f9fa;
+            color: #4a90e2;
+            font-weight: 600;
+            border-bottom: 2px solid #e1e5e9;
+        }
+        .table tr:last-child td {
+            border-bottom: none;
+        }
+        .badge {
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            display: inline-block;
+        }
+        .badge.delivered {
+            background: #7ed321;
+            color: #fff;
+            box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.2);
+        }
+        .badge.transit {
+            background: #f5a623;
+            color: #fff;
+            box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.2);
+        }
+        .badge.exception {
+            background: #d0021b;
+            color: #fff;
+            box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.2);
+        }
+        .progress-bar {
+            width: 100%;
+            height: 12px;
+            background: #e1e5e9;
+            border-radius: 6px;
+            overflow: hidden;
+            margin: 15px 0;
+            box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+            width: 0%;
+            transition: width 0.5s ease;
+            border-radius: 6px;
+        }
+        .chart {
+            background: #ffffff;
+            border-radius: 20px;
+            padding: 25px;
+            margin: 25px 0;
+            height: 320px;
+            display: flex;
+            align-items: end;
+            justify-content: space-around;
+            box-shadow: 8px 8px 16px rgba(163, 177, 198, 0.6), -8px -8px 16px rgba(255, 255, 255, 0.8);
+        }
+        .chart-bar {
+            width: 50px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-radius: 8px 8px 0 0;
+            transition: height 1s ease;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+        }
+        .donut-chart {
+            width: 200px;
+            height: 200px;
+            border-radius: 50%;
+            background: conic-gradient(#7ed321 0% 60%, #f5a623 60% 85%, #d0021b 85% 100%);
+            margin: 0 auto;
+            box-shadow: inset 0 4px 8px rgba(0, 0, 0, 0.1), 0 8px 16px rgba(0, 0, 0, 0.15);
+        }
+        .modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 2000;
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.3s ease;
+        }
+        .modal.active {
+            opacity: 1;
+            visibility: visible;
+        }
+        .modal-content {
+            background: #ffffff;
+            border: none;
+            border-radius: 25px;
+            padding: 35px;
+            max-width: 500px;
+            width: 90%;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+        }
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            color: #4a90e2;
+            font-weight: 600;
+            font-size: 14px;
+        }
+        .map-placeholder, #live-route-map {
+            height: 320px;
+            background: #f8f9fa;
+            border: 2px solid #e1e5e9;
+            border-radius: 20px;
+            position: relative;
+            overflow: hidden;
+            box-shadow: inset 0 4px 8px rgba(0, 0, 0, 0.05);
+        }
+        #live-route-map {
+            min-height: 320px;
+            width: 100%;
+        }
+        .map-node {
+            position: absolute;
+            width: 24px;
+            height: 24px;
+            background: #4a90e2;
+            border-radius: 50%;
+            box-shadow: 0 4px 8px rgba(74, 144, 226, 0.3);
+        }
+        .map-line {
+            position: absolute;
+            height: 4px;
+            background: linear-gradient(90deg, #4a90e2, #667eea);
+            border-radius: 2px;
+            animation: dash 2s infinite linear;
+        }
+        @keyframes dash {
+            0% { background-position: 0 0; }
+            100% { background-position: 20px 0; }
+        }
+        @media (max-width: 768px) {
+            .sidebar {
+                transform: translateX(-280px);
+            }
+            .main-content {
+                margin-left: 0;
+            }
+            .status-stepper {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+            .status-stepper::before {
+                width: 4px;
+                height: 100%;
+                left: 35px;
+                top: 0;
+            }
+            .step {
+                margin-left: 0;
+                margin-bottom: 30px;
+            }
+            .step-info {
+                left: 90px;
+                top: 25px;
+                transform: none;
+                text-align: left;
+            }
+            .navbar {
+                padding: 0 15px;
+            }
+            .logo {
+                font-size: 22px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar">
+        <div class="logo">ShipSwift</div>
+        <div class="navbar-right">
+            <div class="notification">
+                <span>🔔</span>
+                <div class="notification-badge">3</div>
+            </div>
+            <div class="avatar"></div>
+        </div>
+    </nav>
+    <aside class="sidebar" id="sidebar">
+        <div class="sidebar-toggle" onclick="toggleSidebar()">☰</div>
+        <nav>
+            <div class="nav-item active" data-page="dashboard">
+                <span class="nav-icon">📊</span>
+                Dashboard
+            </div>
+            <div class="nav-item" data-page="track">
+                <span class="nav-icon">🔍</span>
+                Track Package
+            </div>
+            <div class="nav-item" data-page="packages">
+                <span class="nav-icon">📦</span>
+                All Packages
+            </div>
+            <div class="nav-item" data-page="create">
+                <span class="nav-icon">➕</span>
+                Create Shipment
+            </div>
+            <div class="nav-item" data-page="exceptions">
+                <span class="nav-icon">⚠️</span>
+                Exceptions & Alerts
+            </div>
+            <div class="nav-item" data-page="analytics">
+                <span class="nav-icon">📈</span>
+                Analytics
+            </div>
+        </nav>
+    </aside>
+    <main class="main-content" id="main-content">
+        <!-- Dashboard Page -->
+        <div id="dashboard" class="page active">
+            <h1 style="font-family: 'Inter', sans-serif; color: #4a90e2; margin-bottom: 30px; font-weight: 700;">Dashboard</h1>
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px; margin-bottom: 30px;">
+                <div class="card">
+                    <h3>Total Packages</h3>
+                    <p style="font-size: 36px; color: #4a90e2; font-weight: bold;">1,247</p>
+                </div>
+                <div class="card">
+                    <h3>In Transit</h3>
+                    <p style="font-size: 36px; color: #f5a623; font-weight: bold;">342</p>
+                </div>
+                <div class="card">
+                    <h3>Delivered Today</h3>
+                    <p style="font-size: 36px; color: #7ed321; font-weight: bold;">89</p>
+                </div>
+                <div class="card">
+                    <h3>Exceptions/Alerts</h3>
+                    <p style="font-size: 36px; color: #d0021b; font-weight: bold;">12</p>
+                </div>
+            </div>
+            <div class="card">
+                <h3>Recent Activity</h3>
+                <div id="activity-feed">
+                    <div style="padding: 10px 0; border-bottom: 1px solid #e1e5e9;">
+                        <strong>PKG-2024-001</strong> - Delivered to recipient
+                        <span style="float: right; color: #4a90e2;">2 min ago</span>
+                    </div>
+                    <div style="padding: 10px 0; border-bottom: 1px solid #e1e5e9;">
+                        <strong>PKG-2024-002</strong> - Out for delivery
+                        <span style="float: right; color: #f5a623;">15 min ago</span>
+                    </div>
+                    <div style="padding: 10px 0; border-bottom: 1px solid #e1e5e9;">
+                        <strong>PKG-2024-003</strong> - In sorting facility
+                        <span style="float: right; color: #4a90e2;">1 hour ago</span>
+                    </div>
+                    <div style="padding: 10px 0; border-bottom: 1px solid #e1e5e9;">
+                        <strong>PKG-2024-004</strong> - Picked up
+                        <span style="float: right; color: #4a90e2;">2 hours ago</span>
+                    </div>
+                    <div style="padding: 10px 0;">
+                        <strong>PKG-2024-005</strong> - Order placed
+                        <span style="float: right; color: #4a90e2;">3 hours ago</span>
+                    </div>
+                </div>
+            </div>
+            <div class="card">
+                <h3>Quick Search</h3>
+                <input type="text" class="input" placeholder="Enter tracking ID..." id="quick-search">
+                <button class="btn" style="margin-top: 10px;" onclick="quickTrack()">Track</button>
+            </div>
+            <div class="card">
+                <h3>Delivery Success Rate</h3>
+                <div style="display: flex; justify-content: space-around; align-items: center;">
+                    <div style="text-align: center;">
+                        <div style="width: 100px; height: 100px; border-radius: 50%; border: 8px solid #e1e5e9; border-top: 8px solid #4a90e2; animation: spin 2s linear infinite; margin: 0 auto 10px; box-shadow: inset 0 4px 8px rgba(0, 0, 0, 0.1);"></div>
+                        <p>98.5%</p>
+                    </div>
+                    <div style="text-align: center;">
+                        <div style="width: 100px; height: 100px; border-radius: 50%; border: 8px solid #e1e5e9; border-top: 8px solid #f5a623; animation: spin 2s linear infinite; margin: 0 auto 10px; box-shadow: inset 0 4px 8px rgba(0, 0, 0, 0.1);"></div>
+                        <p>95.2%</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Track Package Page -->
+        <div id="track" class="page">
+            <h1 style="font-family: 'Inter', sans-serif; color: #4a90e2; margin-bottom: 30px; font-weight: 700;">Track Package</h1>
+            <div class="card">
+                <h3>Enter Tracking ID</h3>
+                <input type="text" class="input" placeholder="e.g., PKG-2024-001" id="tracking-input">
+                <button class="btn" style="margin-top: 10px;" onclick="trackPackage()">Track Package</button>
+            </div>
+            <div id="tracking-result" style="display: none;">
+                <div class="card">
+                    <h3>Package Status</h3>
+                    <div class="status-stepper" id="status-stepper">
+                        <div class="step completed" data-step="1">
+                            <span class="step-icon">📝</span>
+                            <div class="step-info">
+                                <strong>Order Placed</strong><br>
+                                <small>Jan 15, 2024 09:30 AM<br>Online Store</small>
+                            </div>
+                        </div>
+                        <div class="step completed" data-step="2">
+                            <span class="step-icon">🚚</span>
+                            <div class="step-info">
+                                <strong>Picked Up</strong><br>
+                                <small>Jan 15, 2024 02:15 PM<br>Warehouse A</small>
+                            </div>
+                        </div>
+                        <div class="step completed" data-step="3">
+                            <span class="step-icon">🏭</span>
+                            <div class="step-info">
+                                <strong>In Sorting Facility</strong><br>
+                                <small>Jan 16, 2024 08:45 AM<br>Distribution Center</small>
+                            </div>
+                        </div>
+                        <div class="step active" data-step="4">
+                            <span class="step-icon">✈️</span>
+                            <div class="step-info">
+                                <strong>In Transit</strong><br>
+                                <small>Jan 16, 2024 11:20 AM<br>En Route</small>
+                            </div>
+                        </div>
+                        <div class="step pending" data-step="5">
+                            <span class="step-icon">🚚</span>
+                            <div class="step-info">
+                                <strong>Out for Delivery</strong><br>
+                                <small>Estimated: Jan 17, 2024</small>
+                            </div>
+                        </div>
+                        <div class="step pending" data-step="6">
+                            <span class="step-icon">✅</span>
+                            <div class="step-info">
+                                <strong>Delivered</strong><br>
+                                <small>Estimated: Jan 17, 2024</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="card">
+                    <h3>Package Details</h3>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+                        <div>
+                            <h4 style="color: #4a90e2;">Sender</h4>
+                            <p>John Doe<br>123 Main St<br>Anytown, USA</p>
+                        </div>
+                        <div>
+                            <h4 style="color: #4a90e2;">Recipient</h4>
+                            <p>Jane Smith<br>456 Oak Ave<br>Somewhere, USA</p>
+                        </div>
+                        <div>
+                            <h4 style="color: #4a90e2;">Package Info</h4>
+                            <p>Weight: 2.5 lbs<br>Dimensions: 12x8x4 in</p>
+                        </div>
+                        <div>
+                            <h4 style="color: #4a90e2;">Delivery Info</h4>
+                            <p>Priority: Standard<br>Est. Delivery: Jan 17, 2024</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="card">
+                    <h3>Route Map</h3>
+                    <div id="live-route-map" style="height: 300px; border-radius: 20px; overflow: hidden;"></div>
+                    <p style="color: #4a90e2; font-size: 18px; text-align: center; margin-top: 12px;">Live Route Tracking</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- All Packages Page -->
+        <div id="packages" class="page">
+            <h1 style="font-family: 'Inter', sans-serif; color: #4a90e2; margin-bottom: 30px; font-weight: 700;">All Packages</h1>
+            <div class="card">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                    <h3>Packages Overview</h3>
+                    <div>
+                        <button class="btn btn-secondary" style="margin-right: 10px;">Export CSV</button>
+                        <button class="btn btn-secondary">Bulk Actions</button>
+                    </div>
+                </div>
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th>Tracking ID</th>
+                            <th>Sender</th>
+                            <th>Recipient</th>
+                            <th>Status</th>
+                            <th>Priority</th>
+                            <th>Last Update</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="packages-table">
+                        <tr>
+                            <td>PKG-2024-001</td>
+                            <td>John Doe</td>
+                            <td>Jane Smith</td>
+                            <td><span class="badge delivered">Delivered</span></td>
+                            <td>Standard</td>
+                            <td>2 hours ago</td>
+                            <td><button class="btn btn-secondary" onclick="viewPackage('PKG-2024-001')">View</button></td>
+                        </tr>
+                        <tr>
+                            <td>PKG-2024-002</td>
+                            <td>Alice Johnson</td>
+                            <td>Bob Wilson</td>
+                            <td><span class="badge transit">In Transit</span></td>
+                            <td>Express</td>
+                            <td>30 min ago</td>
+                            <td><button class="btn btn-secondary" onclick="viewPackage('PKG-2024-002')">View</button></td>
+                        </tr>
+                        <tr>
+                            <td>PKG-2024-003</td>
+                            <td>Charlie Brown</td>
+                            <td>Diana Prince</td>
+                            <td><span class="badge exception">Delayed</span></td>
+                            <td>Standard</td>
+                            <td>1 hour ago</td>
+                            <td><button class="btn btn-secondary" onclick="viewPackage('PKG-2024-003')">View</button></td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Create New Shipment Page -->
+        <div id="create" class="page">
+            <h1 style="font-family: 'Inter', sans-serif; color: #4a90e2; margin-bottom: 30px; font-weight: 700;">Create New Shipment</h1>
+            <div class="card">
+                <div class="progress-bar">
+                    <div class="progress-fill" id="form-progress" style="width: 25%;"></div>
+                </div>
+                <div style="display: flex; justify-content: space-between; margin-bottom: 20px;">
+                    <span>Step 1: Sender Info</span>
+                    <span>Step 2: Recipient Info</span>
+                    <span>Step 3: Package Details</span>
+                    <span>Step 4: Review</span>
+                </div>
+                <form id="shipment-form">
+                    <div class="form-step active" id="step1">
+                        <h3>Sender Information</h3>
+                        <div class="form-group">
+                            <label>Name</label>
+                            <input type="text" class="input" required>
+                        </div>
+                        <div class="form-group">
+                            <label>Address</label>
+                            <input type="text" class="input" required>
+                        </div>
+                        <div class="form-group">
+                            <label>Phone</label>
+                            <input type="tel" class="input" required>
+                        </div>
+                        <button type="button" class="btn" onclick="nextStep()">Next</button>
+                    </div>
+                    <div class="form-step" id="step2">
+                        <h3>Recipient Information</h3>
+                        <div class="form-group">
+                            <label>Name</label>
+                            <input type="text" class="input" required>
+                        </div>
+                        <div class="form-group">
+                            <label>Address</label>
+                            <input type="text" class="input" required>
+                        </div>
+                        <div class="form-group">
+                            <label>Phone</label>
+                            <input type="tel" class="input" required>
+                        </div>
+                        <button type="button" class="btn btn-secondary" onclick="prevStep()">Previous</button>
+                        <button type="button" class="btn" onclick="nextStep()">Next</button>
+                    </div>
+                    <div class="form-step" id="step3">
+                        <h3>Package Details</h3>
+                        <div class="form-group">
+                            <label>Weight (lbs)</label>
+                            <input type="number" class="input" required>
+                        </div>
+                        <div class="form-group">
+                            <label>Dimensions (L x W x H in inches)</label>
+                            <input type="text" class="input" placeholder="12 x 8 x 4" required>
+                        </div>
+                        <div class="form-group">
+                            <label>Priority</label>
+                            <select class="input" required>
+                                <option>Standard</option>
+                                <option>Express</option>
+                                <option>Overnight</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Special Instructions</label>
+                            <textarea class="input" rows="3"></textarea>
+                        </div>
+                        <button type="button" class="btn btn-secondary" onclick="prevStep()">Previous</button>
+                        <button type="button" class="btn" onclick="nextStep()">Next</button>
+                    </div>
+                    <div class="form-step" id="step4">
+                        <h3>Review & Confirm</h3>
+                        <div id="review-content">
+                            <p>Please review your shipment details before confirming.</p>
+                        </div>
+                        <button type="button" class="btn btn-secondary" onclick="prevStep()">Previous</button>
+                        <button type="button" class="btn" onclick="confirmShipment()">Confirm & Create</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Exceptions & Alerts Page -->
+        <div id="exceptions" class="page">
+            <h1 style="font-family: 'Inter', sans-serif; color: #4a90e2; margin-bottom: 30px; font-weight: 700;">Exceptions & Alerts</h1>
+            <div class="card">
+                <h3>Active Alerts</h3>
+                <div id="alerts-list">
+                    <div class="card" style="margin-bottom: 10px;">
+                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                            <div>
+                                <span class="badge exception">Delayed</span>
+                                <strong>PKG-2024-003</strong> - Package delayed due to weather conditions
+                            </div>
+                            <div>
+                                <button class="btn btn-secondary" onclick="investigateAlert('PKG-2024-003')">Investigate</button>
+                                <button class="btn btn-secondary" onclick="resolveAlert('PKG-2024-003')">Resolve</button>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="card" style="margin-bottom: 10px;">
+                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                            <div>
+                                <span class="badge exception">Damaged</span>
+                                <strong>PKG-2024-004</strong> - Package shows signs of damage
+                            </div>
+                            <div>
+                                <button class="btn btn-secondary" onclick="investigateAlert('PKG-2024-004')">Investigate</button>
+                                <button class="btn btn-secondary" onclick="resolveAlert('PKG-2024-004')">Resolve</button>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="card" style="margin-bottom: 10px;">
+                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                            <div>
+                                <span class="badge exception">Lost</span>
+                                <strong>PKG-2024-005</strong> - Package cannot be located
+                            </div>
+                            <div>
+                                <button class="btn btn-secondary" onclick="investigateAlert('PKG-2024-005')">Investigate</button>
+                                <button class="btn btn-secondary" onclick="resolveAlert('PKG-2024-005')">Resolve</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Analytics Page -->
+        <div id="analytics" class="page">
+            <h1 style="font-family: 'Inter', sans-serif; color: #4a90e2; margin-bottom: 30px; font-weight: 700;">Analytics</h1>
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; margin-bottom: 30px;">
+                <div class="card">
+                    <h3>Average Delivery Time</h3>
+                    <p style="font-size: 36px; color: #4a90e2; font-weight: bold;">2.3 days</p>
+                </div>
+                <div class="card">
+                    <h3>On-time Rate</h3>
+                    <p style="font-size: 36px; color: #f5a623; font-weight: bold;">94.7%</p>
+                </div>
+                <div class="card">
+                    <h3>Exception Rate</h3>
+                    <p style="font-size: 36px; color: #d0021b; font-weight: bold;">1.8%</p>
+                </div>
+            </div>
+            <div class="card">
+                <h3>Packages Shipped (Last 7 Days)</h3>
+                <div class="chart" id="packages-chart">
+                    <div class="chart-bar" style="height: 40%;"></div>
+                    <div class="chart-bar" style="height: 60%;"></div>
+                    <div class="chart-bar" style="height: 80%;"></div>
+                    <div class="chart-bar" style="height: 50%;"></div>
+                    <div class="chart-bar" style="height: 70%;"></div>
+                    <div class="chart-bar" style="height: 90%;"></div>
+                    <div class="chart-bar" style="height: 100%;"></div>
+                </div>
+            </div>
+            <div class="card">
+                <h3>Delivery Status Breakdown</h3>
+                <div class="donut-chart"></div>
+                <div style="display: flex; justify-content: space-around; margin-top: 20px;">
+                    <div style="text-align: center;">
+                        <div style="width: 20px; height: 20px; background: #7ed321; display: inline-block; margin-right: 5px; border-radius: 50%;"></div>
+                        <span>Delivered (60%)</span>
+                    </div>
+                    <div style="text-align: center;">
+                        <div style="width: 20px; height: 20px; background: #f5a623; display: inline-block; margin-right: 5px; border-radius: 50%;"></div>
+                        <span>In Transit (25%)</span>
+                    </div>
+                    <div style="text-align: center;">
+                        <div style="width: 20px; height: 20px; background: #d0021b; display: inline-block; margin-right: 5px; border-radius: 50%;"></div>
+                        <span>Exceptions (15%)</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Modal -->
+    <div class="modal" id="modal">
+        <div class="modal-content">
+            <h2 id="modal-title">Confirm Action</h2>
+            <p id="modal-message">Are you sure you want to perform this action?</p>
+            <div style="text-align: right; margin-top: 20px;">
+                <button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+                <button class="btn" id="modal-confirm" onclick="confirmAction()">Confirm</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-o9N1jQ007Gekb44bGiNsIynv3Lr+Gp9u8wEry0vPe2Y=" crossorigin=""></script>
+    <script>
+        // Mock data
+        const packages = [
+            { id: 'PKG-2024-001', sender: 'John Doe', recipient: 'Jane Smith', status: 'delivered', priority: 'Standard', lastUpdate: '2 hours ago' },
+            { id: 'PKG-2024-002', sender: 'Alice Johnson', recipient: 'Bob Wilson', status: 'transit', priority: 'Express', lastUpdate: '30 min ago' },
+            { id: 'PKG-2024-003', sender: 'Charlie Brown', recipient: 'Diana Prince', status: 'exception', priority: 'Standard', lastUpdate: '1 hour ago' }
+        ];
+
+        let currentPage = 'dashboard';
+        let currentStep = 1;
+        let sidebarCollapsed = false;
+
+        // Navigation
+        document.querySelectorAll('.nav-item').forEach(item => {
+            item.addEventListener('click', () => {
+                navigateTo(item.dataset.page);
+            });
+        });
+
+        let routeMapInitialized = false;
+
+        function navigateTo(page) {
+            document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+            document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+            document.getElementById(page).classList.add('active');
+            document.querySelector(`[data-page="${page}"]`).classList.add('active');
+            currentPage = page;
+
+            if (page === 'track') {
+                if (!routeMapInitialized) {
+                    initRouteMap();
+                    routeMapInitialized = true;
+                } else if (map) {
+                    map.invalidateSize();
+                }
+            }
+        }
+
+        function toggleSidebar() {
+            sidebarCollapsed = !sidebarCollapsed;
+            document.getElementById('sidebar').classList.toggle('collapsed');
+            document.getElementById('main-content').classList.toggle('expanded');
+        }
+
+        // Tracking
+        function trackPackage() {
+            const trackingId = document.getElementById('tracking-input').value;
+            if (trackingId) {
+                document.getElementById('tracking-result').style.display = 'block';
+                // In a real app, you'd fetch data based on tracking ID
+            }
+        }
+
+        function quickTrack() {
+            const trackingId = document.getElementById('quick-search').value;
+            if (trackingId) {
+                navigateTo('track');
+                document.getElementById('tracking-input').value = trackingId;
+                trackPackage();
+            }
+        }
+
+        // Live route map
+        let map;
+        let routeMarker;
+        const routePoints = [
+            [40.7128, -74.0060], // New York
+            [41.8781, -87.6298], // Chicago
+            [39.7392, -104.9903], // Denver
+            [34.0522, -118.2437] // Los Angeles
+        ];
+
+        function initRouteMap() {
+            const container = document.getElementById('live-route-map');
+            if (!container) return;
+
+            if (typeof L === 'undefined') {
+                initFallbackRouteMap(container);
+                return;
+            }
+
+            map = L.map('live-route-map', { zoomControl: false }).setView(routePoints[0], 4);
+
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '&copy; OpenStreetMap contributors'
+            }).addTo(map);
+
+            const polyline = L.polyline(routePoints, { color: '#4a90e2', weight: 5 }).addTo(map);
+            map.fitBounds(polyline.getBounds(), { padding: [40, 40] });
+
+            routeMarker = L.circleMarker(routePoints[0], { radius: 10, fillColor: '#f5a623', color: '#fff', weight: 2, fillOpacity: 1 }).addTo(map);
+
+            let i = 0;
+            const step = () => {
+                i = (i + 1) % routePoints.length;
+                routeMarker.setLatLng(routePoints[i]);
+            };
+            setInterval(step, 2200);
+        }
+
+        function initFallbackRouteMap(container) {
+            container.innerHTML = '';
+            const width = container.offsetWidth;
+            const top = 120;
+            const points = [0.10,0.35,0.60,0.85].map(r => ({ x: width * r, y: top }));
+
+            const line = document.createElement('div');
+            line.style.position = 'absolute';
+            line.style.left = '5%';
+            line.style.top = `${top + 12}px`;
+            line.style.width = '90%';
+            line.style.height = '6px';
+            line.style.background = '#4a90e2';
+            line.style.borderRadius = '3px';
+            container.appendChild(line);
+
+            points.forEach(p => {
+                const n = document.createElement('div');
+                n.style.position = 'absolute';
+                n.style.left = `${p.x - 12}px`;
+                n.style.top = `${p.y - 12}px`;
+                n.style.width = '24px';
+                n.style.height = '24px';
+                n.style.borderRadius = '50%';
+                n.style.background = '#4a90e2';
+                n.style.boxShadow = '0 4px 8px rgba(0,0,0,0.2)';
+                container.appendChild(n);
+            });
+
+            const marker = document.createElement('div');
+            marker.style.position = 'absolute';
+            marker.style.width = '22px';
+            marker.style.height = '22px';
+            marker.style.borderRadius = '50%';
+            marker.style.background = '#f5a623';
+            marker.style.top = `${top - 3}px`;
+            marker.style.left = `${points[0].x - 11}px`;
+            marker.style.boxShadow = '0 4px 10px rgba(0,0,0,0.25)';
+            container.appendChild(marker);
+
+            let i = 0;
+            setInterval(() => {
+                i = (i + 1) % points.length;
+                marker.style.left = `${points[i].x - 11}px`;
+            }, 2200);
+        }
+
+        // Form stepper
+        function nextStep() {
+            if (currentStep < 4) {
+                document.getElementById(`step${currentStep}`).classList.remove('active');
+                currentStep++;
+                document.getElementById(`step${currentStep}`).classList.add('active');
+                updateProgress();
+            }
+        }
+
+        function prevStep() {
+            if (currentStep > 1) {
+                document.getElementById(`step${currentStep}`).classList.remove('active');
+                currentStep--;
+                document.getElementById(`step${currentStep}`).classList.add('active');
+                updateProgress();
+            }
+        }
+
+        function updateProgress() {
+            const progress = (currentStep / 4) * 100;
+            document.getElementById('form-progress').style.width = `${progress}%`;
+        }
+
+        function confirmShipment() {
+            // Generate mock tracking ID
+            const trackingId = 'PKG-2024-' + Math.floor(Math.random() * 1000).toString().padStart(3, '0');
+            showModal('Shipment Created', `Your shipment has been created successfully! Tracking ID: ${trackingId}`, () => {
+                navigateTo('dashboard');
+                currentStep = 1;
+                document.getElementById('step4').classList.remove('active');
+                document.getElementById('step1').classList.add('active');
+                updateProgress();
+                document.getElementById('shipment-form').reset();
+            });
+        }
+
+        // Modal functions
+        function showModal(title, message, confirmCallback) {
+            document.getElementById('modal-title').textContent = title;
+            document.getElementById('modal-message').textContent = message;
+            document.getElementById('modal-confirm').onclick = () => {
+                confirmCallback();
+                closeModal();
+            };
+            document.getElementById('modal').classList.add('active');
+        }
+
+        function closeModal() {
+            document.getElementById('modal').classList.remove('active');
+        }
+
+        function investigateAlert(packageId) {
+            showModal('Investigate Alert', `Investigating alert for package ${packageId}...`, () => {
+                // Mock investigation
+                alert(`Investigation completed for ${packageId}`);
+            });
+        }
+
+        function resolveAlert(packageId) {
+            showModal('Resolve Alert', `Are you sure you want to resolve the alert for package ${packageId}?`, () => {
+                // Mock resolution
+                alert(`Alert resolved for ${packageId}`);
+            });
+        }
+
+        function viewPackage(packageId) {
+            navigateTo('track');
+            document.getElementById('tracking-input').value = packageId;
+            trackPackage();
+        }
+
+        // AJAX function to load packages data
+        async function loadPackagesData() {
+            try {
+                // Simulate AJAX call with fetch (using a data URL for mock data)
+                const response = await fetch('data:text/json;charset=utf-8,' + encodeURIComponent(JSON.stringify(packages)));
+                const data = await response.json();
+                updatePackagesTable(data);
+            } catch (error) {
+                console.error('Error loading packages data:', error);
+                // Fallback to hardcoded data
+                updatePackagesTable(packages);
+            }
+        }
+
+        function updatePackagesTable(data) {
+            const tableBody = document.getElementById('packages-table');
+            tableBody.innerHTML = data.map(pkg => `
+                <tr>
+                    <td>${pkg.id}</td>
+                    <td>${pkg.sender}</td>
+                    <td>${pkg.recipient}</td>
+                    <td><span class="badge ${pkg.status}">${pkg.status.charAt(0).toUpperCase() + pkg.status.slice(1)}</span></td>
+                    <td>${pkg.priority}</td>
+                    <td>${pkg.lastUpdate}</td>
+                    <td><button class="btn btn-secondary" onclick="viewPackage('${pkg.id}')">View</button></td>
+                </tr>
+            `).join('');
+        }
+
+        // Load data on page load
+        window.addEventListener('load', () => {
+            loadPackagesData();
+            initRouteMap();
+            // Animate chart bars
+            setTimeout(() => {
+                document.querySelectorAll('.chart-bar').forEach((bar, index) => {
+                    setTimeout(() => {
+                        bar.style.height = bar.style.height;
+                    }, index * 100);
+                });
+            }, 500);
+        });
+
+        // Responsive adjustments
+        window.addEventListener('resize', () => {
+            if (window.innerWidth <= 768) {
+                if (!sidebarCollapsed) {
+                    toggleSidebar();
+                }
+            }
+        });
+    </script>
+</body>
+</html>
